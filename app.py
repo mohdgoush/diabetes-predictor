@@ -1,29 +1,52 @@
-import streamlit as st
-import pickle
+from flask import Flask, render_template, request
 import numpy as np
+import pickle
 
+app = Flask(__name__)
+
+# Load model and scaler
 model = pickle.load(open('diabetes_model.pkl', 'rb'))
 scaler = pickle.load(open('scaler.pkl', 'rb'))
 
-st.title("Diabetes Prediction App")
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    prediction = None
+    form_data = {
+        "pregnancies": 0,
+        "glucose": 100,
+        "bp": 70,
+        "skin": 20,
+        "insulin": 80,
+        "bmi": 25.0,
+        "dpf": 0.5,
+        "age": 30
+    }
 
-st.markdown("### Enter patient details below:")
+    if request.method == 'POST':
+        try:
+            # Collect form values
+            form_data = {
+                "pregnancies": int(request.form['pregnancies']),
+                "glucose": int(request.form['glucose']),
+                "bp": int(request.form['bp']),
+                "skin": int(request.form['skin']),
+                "insulin": int(request.form['insulin']),
+                "bmi": float(request.form['bmi']),
+                "dpf": float(request.form['dpf']),
+                "age": int(request.form['age']),
+            }
 
-pregnancies = st.number_input("Pregnancies", min_value=0, max_value=20, value=0)
-glucose = st.number_input("Glucose Level", min_value=0, max_value=200, value=100)
-bp = st.number_input("Blood Pressure", min_value=0, max_value=150, value=70)
-skin = st.number_input("Skin Thickness (mm)", min_value=0, max_value=100, value=20)
-insulin = st.number_input("Insulin Level", min_value=0, max_value=900, value=80)
-bmi = st.number_input("BMI", min_value=0.0, max_value=70.0, value=25.0, step=0.1)
-dpf = st.number_input("Diabetes Pedigree Function", min_value=0.0, max_value=3.0, value=0.5, step=0.01)
-age = st.number_input("Age", min_value=1, max_value=120, value=30)
+            input_data = np.array([[*form_data.values()]])
+            input_scaled = scaler.transform(input_data)
+            result = model.predict(input_scaled)[0]
 
-if st.button("Predict"):
-    input_data = np.array([[pregnancies, glucose, bp, skin, insulin, bmi, dpf, age]])
-    input_scaled = scaler.transform(input_data)
-    result = model.predict(input_scaled)[0]
+            prediction = " The patient is likely to be diabetic." if result == 1 else " The patient is likely not diabetic."
 
-    if result == 1:
-        st.error("🔴 The patient is likely to be diabetic.")
-    else:
-        st.success("🟢 The patient is likely **not** diabetic.")
+        except Exception as e:
+            prediction = f"Error: {e}"
+
+    return render_template('index.html', prediction=prediction, data=form_data)
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
